@@ -91,6 +91,7 @@ impl Lexer {
             "async" => TokenType::Async, "await" => TokenType::Await, "unsafe" => TokenType::Unsafe, "asm" => TokenType::Asm, "fastexec" => TokenType::FastExec,
             "routine" => TokenType::Routine,
             "sizeof" => TokenType::Sizeof, "rolling" => TokenType::RollingTag,
+            "style" => TokenType::Style,
             // IO / Utility
             "echo"   => TokenType::Echo,
             "print"  => TokenType::Print,
@@ -176,7 +177,23 @@ impl Lexer {
                     '"' => text.push('"'),
                     '\'' => text.push('\''),
                     '0' => text.push('\0'),
-                    c => text.push(c), // Bilinmeyen kaçış dizileri için karakteri olduğu gibi ekle
+                    'x' => {
+                        // Hexadecimal escape sequence: \xHH
+                        let h1 = self.advance();
+                        let h2 = self.advance();
+                        if let Some(d1) = h1.to_digit(16) {
+                            if let Some(d2) = h2.to_digit(16) {
+                                let val = (d1 * 16 + d2) as u8;
+                                text.push(val as char);
+                            } else {
+                                // Hata durumu: xH? -> x, H, ? (Basitçe geri ekle veya hata ver, şimdilik esnek olalım)
+                                text.push('x'); text.push(h1); text.push(h2);
+                            }
+                        } else {
+                             text.push('x'); text.push(h1); text.push(h2);
+                        }
+                    },
+                    c => text.push(c),
                 }
             } else {
                 text.push(self.advance());

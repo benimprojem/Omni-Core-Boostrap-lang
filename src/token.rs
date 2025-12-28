@@ -96,7 +96,7 @@ pub enum TokenType {
     Mut, Null, True, False,
     
     // Advanced Features
-    Async, Await, Unsafe, Asm, FastExec, Routine,
+    Async, Await, Unsafe, Asm, FastExec, Routine, Style,
     
     // Memory
     Sizeof,

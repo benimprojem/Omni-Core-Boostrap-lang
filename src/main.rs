@@ -120,7 +120,7 @@ fn parse_config(args: Vec<String>) -> Result<Config, String> {
                     return Err("'-I' bayrağı bir yol (path) bekliyor.".to_string());
                 }
             }
-            _ if arg.ends_with(".nim") => {
+            _ if arg.ends_with(".nim") || arg.ends_with(".n") => {
                 if input_file.is_empty() {
                     input_file = arg;
                 } else {
@@ -270,50 +270,56 @@ fn main() {
                 .to_string();
 
             // YENİ: Hedef platforma göre dosya uzantılarını ve isimlerini belirle
-            let (platform_suffix, obj_ext, output_ext) = match config.target_platform {
+            let (_platform_suffix, _obj_ext, output_ext) = match config.target_platform {
                 TargetPlatform::Windows => ("windows", "obj", if config.output_type == OutputType::Executable { ".exe" } else { ".dll" }),
                 TargetPlatform::Linux => ("linux", "o", if config.output_type == OutputType::Executable { "" } else { ".so" }),
                 TargetPlatform::Macos => ("macos", "o", if config.output_type == OutputType::Executable { "" } else { ".dylib" }),
                 _ => ("unknown", "o", ""), // Bilinmeyen platformlar için varsayılan
             };
 
-            let output_asm_file = format!("{}/{}.{}.asm", obj_dir, base_name, platform_suffix);
-            let output_obj_file = format!("{}/{}.{}.{}", obj_dir, base_name, platform_suffix, obj_ext);
+            let output_asm_file = format!("{}/{}.s", obj_dir, base_name); // GAS typically uses .s or .asm
+            let output_obj_file = format!("{}/{}.o", obj_dir, base_name);
             let output_final_file = format!("{}/{}{}", exe_base_dir, base_name, output_ext);
 
             fs::write(&output_asm_file, asm_code).expect("Assembly dosyası yazılamadı.");
-            println!("✅ Assembly kodu başarıyla '{}' dosyasına yazıldı.", output_asm_file);
+            println!("✅ GAS (Intel) kodu başarıyla '{}' dosyasına yazıldı.", output_asm_file);
 
-            let (nasm_format, linker_cmd, linker_args) = match config.target_platform {
-                // NASM formatı ve linker argümanları
+            // 1. AŞAMA: GCC ile Assembly'den Nesne Dosyası (.o) Üretme
+            println!("⚙️ GCC ile Assembly derleniyor...");
+            let assemble_status = Command::new("gcc")
+                .args(&["-x", "assembler", "-c", &output_asm_file, "-o", &output_obj_file])
+                .status()
+                .expect("GCC (assembler) çalıştırılamadı. GCC'nin sistem PATH'inde olduğundan emin olun.");
+
+            if !assemble_status.success() {
+                eprintln!("❌ Assembly derlemesi başarısız oldu.");
+                process::exit(1);
+            }
+
+            // 2. AŞAMA: Linkleme
+            let (linker_cmd, linker_args) = match config.target_platform {
                 TargetPlatform::Windows => (
-                    "win64",
-                    "gcc", // MinGW-w64 GCC linker
+                    "gcc",
                     if config.output_type == OutputType::Executable {
-                        vec![output_obj_file.to_string(), "-o".to_string(), output_final_file.to_string()]
+                        vec![output_obj_file.to_string(), "libs/_print.obj".to_string(), "-o".to_string(), output_final_file.to_string()]
                     } else { // SharedLibrary (DLL)
-                        vec!["-shared".to_string(), output_obj_file.to_string(), "-o".to_string(), output_final_file.to_string()]
+                        vec!["-shared".to_string(), output_obj_file.to_string(), "libs/_print.obj".to_string(), "-o".to_string(), output_final_file.to_string()]
                     }
                 ),
                 TargetPlatform::Linux => (
-                    "elf64",
-                    "ld",
+                    "gcc",
                     if config.output_type == OutputType::Executable {
-                        vec![output_obj_file.to_string(), "-o".to_string(), output_final_file.to_string()]
+                        vec![output_obj_file.to_string(), "-o".to_string(), output_final_file.to_string(), "-no-pie".to_string()]
                     } else { // SharedLibrary (SO)
-                        vec![output_obj_file.to_string(), "-o".to_string(), output_final_file.to_string(), "-shared".to_string()]
+                        vec!["-shared".to_string(), output_obj_file.to_string(), "-o".to_string(), output_final_file.to_string()]
                     }
                 ),
                 TargetPlatform::Macos => (
-                    "macho64",
-                    "ld",
+                    "gcc",
                     if config.output_type == OutputType::Executable {
-                        vec![output_obj_file.to_string(), "-o".to_string(), output_final_file.to_string(), "-lSystem".to_string(), "-syslibroot".to_string(), "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk".to_string(), "-e".to_string(), "_main".to_string()]
+                        vec![output_obj_file.to_string(), "-o".to_string(), output_final_file.to_string()]
                     } else { 
-                        // SharedLibrary (dylib)
-                        // macOS'ta dylib için -shared ve -undefined dynamic_lookup gibi flag'ler gerekebilir.
-                        // Basit bir örnek için -shared yeterli olabilir.
-                        vec![output_obj_file.to_string(), "-o".to_string(), output_final_file.to_string(), "-shared".to_string(), "-lSystem".to_string(), "-syslibroot".to_string(), "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk".to_string()]
+                        vec!["-shared".to_string(), output_obj_file.to_string(), "-o".to_string(), output_final_file.to_string()]
                     }
                 ),
                 _ => {
@@ -322,24 +328,17 @@ fn main() {
                 }
             };
             
-            // NASM komutuna output_obj_file'ı String yerine &str olarak geçirmek için
-            let nasm_output_obj_file_str: &str = &output_obj_file;
-
-            println!("⚙️ NASM ile derleniyor (format: {})...", nasm_format);
-            let nasm_status = Command::new("nasm")
-                .args(&["-f", nasm_format, &output_asm_file, "-o", nasm_output_obj_file_str])
+            println!("🔗 Linker ile bağlanıyor...");
+            let linker_status = Command::new(linker_cmd)
+                .args(&linker_args)
                 .status()
-                .expect("NASM komutu çalıştırılamadı. NASM'ın sistem PATH'inde olduğundan emin olun.");
+                .expect("Linker (gcc) çalıştırılamadı.");
 
-            if !nasm_status.success() {
-                eprintln!("❌ NASM derlemesi başarısız oldu.");
-                process::exit(1);
+            if !linker_status.success() { 
+                eprintln!("❌ Linkleme başarısız oldu."); 
+                process::exit(1); 
             }
-
-            //println!("🔗 Linker ile bağlanıyor...");
-            println!("Komut: {} {}", linker_cmd, linker_args.join(" "));
-            let linker_status = Command::new(linker_cmd).args(&linker_args).status().expect("Linker komutu çalıştırılamadı. Linker'ın sistem PATH'inde olduğundan emin olun.");
-            if !linker_status.success() { eprintln!("❌ Linkleme başarısız oldu."); process::exit(1); }
+            println!("✅ Başarıyla oluşturuldu: {}", output_final_file);
         }
         Err(e) => {
             eprintln!("Kod Üretimi Hatası: {}", e);

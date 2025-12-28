@@ -39,7 +39,10 @@ pub struct TypeChecker<'a> {
     // YENİ: Hangi modüllerin zaten yüklendiğini takip et.
     pub loaded_modules: HashSet<String>,
     // YENİ: Modül arama yolları
+    // YENİ: Modül arama yolları
     pub include_paths: Vec<String>,
+    // YENİ: Kullanıcı tanımlı stiller: Stil Adı -> Stil Kodu (ANSI)
+    pub styles: HashMap<String, String>,
     
     pub scopes: Vec<HashMap<String, VarInfo>>,
     // YENİ: Mevcut kontrol edilen fonksiyonun bilgilerini sakla.
@@ -65,7 +68,8 @@ impl<'a> TypeChecker<'a> {
             module_aliases: HashMap::new(),
             loaded_modules: HashSet::new(),
             include_paths,
-			expected_return_type: Type::Void,
+            styles: HashMap::new(),
+            expected_return_type: Type::Void,
             current_function_name: None,
             current_function_params: Vec::new(),
             in_fastexec_block: false,
@@ -77,7 +81,9 @@ impl<'a> TypeChecker<'a> {
 		
 		// Yerleşik fonksiyonları kaydet
         checker.function_signatures.insert("echo".to_string(),   (vec![("value".to_string(), Type::Any, false)], Type::Void, false, true));
-        checker.function_signatures.insert("print".to_string(),  (vec![("message".to_string(), Type::Str(None), false), ("type".to_string(), Type::Str(None), false)], Type::Void, false, true));
+        checker.function_signatures.insert("print".to_string(),  (vec![("message".to_string(), Type::Any, false), ("style".to_string(), Type::Str(None), true)], Type::Void, false, true));
+        checker.function_signatures.insert("println".to_string(),(vec![("message".to_string(), Type::Any, false), ("style".to_string(), Type::Str(None), true)], Type::Void, false, true));
+        checker.function_signatures.insert("eprint".to_string(), (vec![("message".to_string(), Type::Any, false)], Type::Void, false, true));
         checker.function_signatures.insert("input".to_string(),  (vec![], Type::Str(None), false, true));
         checker.function_signatures.insert("strlen".to_string(), (vec![("s".to_string(), Type::Str(None), false)], Type::I32, false, true));
         checker.function_signatures.insert("arrlen".to_string(), (vec![("arr".to_string(), Type::Array(Box::new(Type::Any), None), false)], Type::I32, false, true));
@@ -89,6 +95,11 @@ impl<'a> TypeChecker<'a> {
         // YENİ: Komut satırı argüman fonksiyonları artık yerleşik ve global.
         checker.function_signatures.insert("args".to_string(), (vec![], Type::Array(Box::new(Type::Str(None)), None), false, true));
         checker.function_signatures.insert("arg_count".to_string(), (vec![], Type::I32, false, true));
+
+        // YENİ: Tip dönüşüm fonksiyonları
+        checker.function_signatures.insert("_int".to_string(),   (vec![("val".to_string(), Type::Any, false)], Type::I64, false, true));
+        checker.function_signatures.insert("_str".to_string(),   (vec![("val".to_string(), Type::Any, false)], Type::Str(None), false, true));
+        checker.function_signatures.insert("_float".to_string(), (vec![("val".to_string(), Type::Any, false)], Type::F64, false, true));
 
 		checker.push_scope(); 
 
@@ -365,6 +376,12 @@ impl<'a> TypeChecker<'a> {
                         }
                     }
                     self.pop_scope()?;
+                }
+                Decl::Style { name, code } => {
+                    if self.styles.contains_key(name) {
+                        return Err(format!("Hata: '{}' stili zaten tanımlı.", name));
+                    }
+                    self.styles.insert(name.clone(), code.clone());
                 }
 				Decl::StmtDecl(stmt) => {
 					self.check_stmt(stmt)?;
@@ -754,10 +771,19 @@ impl<'a> TypeChecker<'a> {
 						}
 				
 				}
+				let mut resolved_ty = self.resolve_type(ty)?;
+				if resolved_ty == Type::Any {
+					if let Some(init_expr) = init {
+						resolved_ty = self.type_of_expr(init_expr)?;
+					} else {
+						return Err(format!("Hata: '{}' değişkeni için tip belirtilmedi ve bir başlangıç değeri atanmadı. Tip çıkarımı yapılamıyor.", name));
+					}
+				}
+
 				let mut info = VarInfo {
-					ty: self.resolve_type(ty)?, // Tipi çözümle
+					ty: resolved_ty,
 					is_const: *is_const,
-					_is_mutable: *is_mutable, // Bu, 'var' veya 'mut let' ise true olur.
+					_is_mutable: *is_mutable,
 				};
                 // YENİ: Eğer tip bir enum ise, onu Custom'dan Enum(name, base_type)'a dönüştür.
                 if let Type::Custom(name) = &info.ty {
@@ -770,9 +796,9 @@ impl<'a> TypeChecker<'a> {
                     }
                 }
 /*
-				// YENİ: Eğer tip 'arr' ise, bunu tip çıkarımı için 'Array(Unknown, None)'a dönüştür.
+				// YENİ: Eğer tip 'arr' ise, bunu tip çıkarımı için 'Array(Array, None)'a dönüştür.
 				if info.ty == Type::Arr {
-					info.ty = Type::Array(Box::new(Type::Unknown), None);
+					info.ty = Type::Array(Box::new(Type::Array), None);
 				}
 */
 				if let (Type::Array(inner, _), Some(init_expr)) = (&mut info.ty, init) {
@@ -1127,14 +1153,32 @@ impl<'a> TypeChecker<'a> {
             is_const: *is_const,
             _is_mutable: *is_mutable,
         };
+        
+        // Type::Arr için özel işlem: boyut çıkarımı yap ama tipi değiştirme
         if info.ty == Type::Arr {
-            info.ty = Type::Array(Box::new(Type::Unknown), None);
+            if let Some(init_expr) = init {
+                if let Ok(init_type) = self.type_of_expr(init_expr) {
+                    if let Type::ArrayLiteral(_elements) = init_type {
+                        // Type::Arr olarak kalsın, sadece boyut bilgisini not et
+                        // Boyut bilgisi codegen'de ArrayLiteral'den alınacak
+                    }
+                }
+            }
         }
+        
+        // Type::Array için tip çıkarımı (homojen arrayler)
         if let (Type::Array(inner, _), Some(init_expr)) = (&mut info.ty, init) {
             if **inner == Type::Unknown {
                 if let Ok(init_type) = self.type_of_expr(init_expr) {
                     if let Type::ArrayLiteral(elements) = init_type {
+                        // İlk elemanın tipini kullan (homojen array için)
                         *inner = Box::new(elements.get(0).cloned().unwrap_or(Type::Unknown));
+                        // Dizinin boyutunu da çıkar (Inference)
+                        if let Type::Array(_, len_opt) = &mut info.ty {
+                            if len_opt.is_none() {
+                                *len_opt = Some(elements.len());
+                            }
+                        }
                     }
                 }
             }
@@ -1328,11 +1372,12 @@ impl<'a> TypeChecker<'a> {
             Expr::Range { start, end } => {
                 let start_type = self.type_of_expr(start)?;
                 let end_type = self.type_of_expr(end)?;
-                if start_type != end_type {
-                    return Err(format!("Hata: Aralık (range) ifadesinin başlangıç ve bitiş tipleri uyuşmuyor: {:?} vs {:?}.", start_type, end_type));
+                
+                if !start_type.is_integer() || !end_type.is_integer() {
+                    return Err(format!("Hata: Aralık (range) operatörü '..' sadece tamsayılar arasında çalışır, bulundu: {:?} .. {:?}.", start_type, end_type));
                 }
-                // Aralık ifadesi, kendi tipini (Range) döndürür.
-                // `for` döngüsü gibi yapılar bu tipi nasıl kullanacağını bilir.
+                
+                // Şimdilik Range'i Custom olarak işaretliyoruz, for döngüsü bunu tanıyacak.
                 Ok(Type::Custom(format!("Range<{:?}>", start_type)))
             }
             Expr::Binary { left, op, right } => {

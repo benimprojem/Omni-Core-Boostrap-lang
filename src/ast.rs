@@ -388,6 +388,11 @@ pub enum Decl {
         spec: UseSpec, // Artık ayrı bir enum tipi
         is_export: bool, // `export use ...` için eklendi
     },
+    // YENİ: Stil Tanımı (style Name = "ANSI_CODE")
+    Style {
+        name: String,
+        code: String,
+    },
 	// YENİ: Programın tamamını temsil eden varyant
     Program(Vec<Decl>),
 	StmtDecl(Box<Stmt>),

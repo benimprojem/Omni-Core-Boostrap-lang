@@ -147,6 +147,8 @@ impl Parser {
             Some(self.parse_use_decl(is_export, is_public))
         } else if self.check(&TokenType::Extern) {
             Some(self.parse_extern_decl(is_public, is_export))
+        } else if self.check(&TokenType::Style) {
+            Some(self.parse_style_decl())
         } else if self.check(&TokenType::RBrace) {
             // Global alanda beklenmedik bir '}' varsa, hata ver ve tüket.
             self.errors.push(format!("Sözdizimi Hatası (Satır {}): Global alanda beklenmedik '}}'.", self.peek().line));
@@ -175,6 +177,35 @@ impl Parser {
             None // Hata sonrası AST'ye bir şey ekleme.
         };
         result
+    }
+
+    fn parse_style_decl(&mut self) -> Decl {
+        self.consume(TokenType::Style, "'style' bekleniyor");
+        let name_token = self.advance().clone();
+        
+        let name = match name_token.kind {
+            TokenType::Ident(n) => n,
+            _ => {
+                self.errors.push(format!("Sözdizimi Hatası (Satır {}): Stil adı bekleniyor.", name_token.line));
+                "unknown".to_string()
+            }
+        };
+
+        self.consume(TokenType::Assign, "'=' bekleniyor");
+        
+        // Değer bir string olmalı
+        let value_token = self.advance().clone();
+        let code = match value_token.kind {
+            TokenType::StrLit(s) => s,
+            _ => {
+                self.errors.push(format!("Sözdizimi Hatası (Satır {}): Stil tanımı için string bekleniyor.", value_token.line));
+                "".to_string()
+            }
+        };
+        
+        self.consume(TokenType::Semi, "';' bekleniyor");
+        
+        Decl::Style { name, code }
     }
 
     fn parse_function(&mut self, is_export: bool, is_public_decl: bool) -> Decl {
@@ -774,13 +805,21 @@ impl Parser {
             self.consume(TokenType::RBracket, "Dizi tanımı için ']' bekleniyor.");
         }
         
-        self.consume(TokenType::Colon, "':' bekleniyor");
-        let parsed_type = self.parse_type();
-
-        let var_type = if is_array {
-            Type::Array(Box::new(parsed_type), array_size)
+        let var_type = if self.check(&TokenType::Colon) {
+            self.advance();
+            let parsed_type = self.parse_type();
+            if is_array {
+                Type::Array(Box::new(parsed_type), array_size)
+            } else {
+                parsed_type
+            }
         } else {
-            parsed_type
+            // Tip belirtilmemişse Any (Çıkarılacak tip) ata.
+            if is_array {
+                Type::Array(Box::new(Type::Any), array_size)
+            } else {
+                Type::Any
+            }
         };
 
         let mut init = None;
@@ -869,12 +908,21 @@ impl Parser {
     }
     
     fn parse_for_stmt(&mut self) -> Stmt {
-        self.advance(); 
-        self.consume(TokenType::LParen, "'for' döngüsü için '(' bekleniyor");
+        self.advance(); // 'for' tüket
+        
+        // Parantezli mi değil mi kontrol et
+        let has_lparen = if self.check(&TokenType::LParen) {
+            self.advance();
+            true
+        } else {
+            false
+        };
 
         let mut has_in_keyword = false;
         let mut temp_pos = self.current;
-        while temp_pos < self.tokens.len() && self.tokens[temp_pos].kind != TokenType::RParen {
+        let terminator = if has_lparen { TokenType::RParen } else { TokenType::LBrace };
+        
+        while temp_pos < self.tokens.len() && self.tokens[temp_pos].kind != terminator {
             if self.tokens[temp_pos].kind == TokenType::In {
                 has_in_keyword = true;
                 break;
@@ -896,7 +944,10 @@ impl Parser {
             };
             self.consume(TokenType::In, "for-in döngüsü için 'in' anahtar kelimesi bekleniyor.");
             let iterable = self.parse_expression();
-            self.consume(TokenType::RParen, "for döngüsü başlığından sonra ')' bekleniyor.");
+            
+            if has_lparen {
+                self.consume(TokenType::RParen, "for döngüsü başlığından sonra ')' bekleniyor.");
+            }
             let body = Box::new(self.parse_block());
 
             Stmt::For {
@@ -924,8 +975,15 @@ impl Parser {
             let condition = if !self.check(&TokenType::Comma) { Some(self.parse_expression()) } else { None };
             self.consume(TokenType::Comma, "for döngüsü koşulundan sonra ',' bekleniyor.");
 
-            let increment = if !self.check(&TokenType::RParen) { Some(self.parse_expression()) } else { None };
-            self.consume(TokenType::RParen, "for döngüsü başlığından sonra ')' bekleniyor.");
+            let increment = if !self.check(&TokenType::RParen) && !self.check(&TokenType::LBrace) { 
+                Some(self.parse_expression()) 
+            } else { 
+                None 
+            };
+
+            if has_lparen {
+                self.consume(TokenType::RParen, "for döngüsü başlığından sonra ')' bekleniyor.");
+            }
 
             let body = Box::new(self.parse_block());
 
