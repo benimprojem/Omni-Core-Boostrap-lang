@@ -1,0 +1,69 @@
+_strlen Nasıl Kullanılır?
+Girdi (Input): Ölçmek istediğiniz string'in bellek adresini (pointer) RCX register'ına koymalısınız.
+Çıktı (Output): Fonksiyon bittiğinde, string'in uzunluğu RAX register'ında döner.
+
+
+_print fonksiyonunu bir kütüphane modülü gibi nasıl kullanabileceğinizi adım adım özetleyen bir rehber.
+
+Önemli: _print sembolünü dışarıdan görünür kılmak için .global _print satırı kalmalıdır.
+Dosya B: main.s (Kullanıcı Dosyası)
+Burada _print fonksiyonunu kullanacağız.
+
+asm
+.intel_syntax noprefix
+.section .text
+.global main
+.extern _print  # Dışarıdaki fonksiyonu bildirdik
+.extern _strlen # strlen fonksiyonu str adresi rcx  dönüş rax..
+main:
+    sub rsp, 40              # Hizalama ve gölge alan
+    
+    lea rcx, [msg]           # 1. Argüman: Format
+    mov rdx, 123             # 2. Argüman: Sayı
+    call _print              # Kütüphanedeki fonksiyonu çağır
+    
+    xor rcx, rcx
+    call ExitProcess
+.section .data
+    msg: .asciz "Sayı: %d\r\n"
+
+
+Parametre Geçişi (Calling Convention):
+İlk 4 parametreyi sırasıyla RCX, RDX, R8, R9 registerlarına koyun.
+ve sonraki parametreleri yığına ([RSP+32]'den başlayarak) koyun.
+Kritik: call _print öncesi sub rsp, 40 (veya daha fazla) yaparak yığını 16-byte hizalı tutun.
+
+
+
+
+
+
+## Derleme ve Obj (Nesne) Dosyası Oluşturma
+Kütüphane kodunuzu her seferinde yeniden derlemek yerine bir kez .obj dosyasına çevirip saklayabilirsiniz:
+
+cmd
+# Sadece obje dosyası üretir (linkleme yapmaz)
+gcc -c print.s -o print.obj
+3. Bağlama (Linking) Süreci
+Ana programınızı derlerken, daha önce oluşturduğunuz .obj dosyasını linker'a (bağlayıcıya) tanıtmanız gerekir:
+
+cmd
+# main.S'i derle ve print_lib.obj ile bağla
+gcc main.S print_lib.obj -o my_app.exe -nostdlib -lkernel32 -e main
+4. Dışarıdan Kullanım (Nimble Veya Başka Dillerden)
+Eğer bu fonksiyonu kendi yazdığınız bir derleyicinin (Nimble gibi) çıktısına ekleyecekseniz:
+
+Assembly Çıktısına Bildirim Ekle: Derleyiciniz ürettiği 
+.asm
+ veya 
+.S
+ dosyasının başına extern _print satırını otomatik eklemeli.
+Statik Linkleme: Derleme aşamasının sonunda linker komutuna print_lib.obj dosyasını eklemelisiniz.
+Parametre Geçişi (Calling Convention):
+İlk 4 parametreyi sırasıyla RCX, RDX, R8, R9 registerlarına koyun.
+ve sonraki parametreleri yığına ([RSP+32]'den başlayarak) koyun.
+Kritik: call _print öncesi sub rsp, 40 (veya daha fazla) yaparak yığını 16-byte hizalı tutun.
+Özetle Mantık
+.obj Hazırla: Fonksiyonu bir kez paketle.
+extern ile Çağır: Diğer dosyalarda varlığını bildir.
+Linker ile Birleştir: EXE üretirken tüm parçaları uç uca ekle.

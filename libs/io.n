@@ -1,0 +1,30 @@
+/******************************************************************************
+ libs/io.nim
+ Bu bir kütüphane modülüdür.
+ 
+ 
+    [x]** _print  * _print.obj tüm print işlemlerini yapan asıl fonksiyon. Asm olarak yazıldı.
+        * Parametre Geçişi (Calling Convention):
+            İlk 4 parametreyi sırasıyla RCX, RDX, R8, R9 registerlarına koyun.
+            ve sonraki parametreleri yığına ([RSP+32]'den başlayarak) koyun.
+            Kritik: call _print öncesi sub rsp, 40 (veya daha fazla) yaparak yığını 16-byte hizalı tutun.
+                sub rsp, 40              # Hizalama ve gölge alan
+                lea rcx, [msg]           # 1. Argüman: Format string yazılacak msg stringin adresi
+                mov rdx, 123             # 2. Argüman: Sayı
+                call _print              # Kütüphanedeki fonksiyonu çağır
+                
+    [x]** _strlen * _print.obj  Asm olarak yazıldı _print.obj içerisinde.
+        * .extern _strlen # strlen fonksiyonu str adresi rcx  dönüş rax..
+ 
+    [/]** echo(string:str {:any})   echo nun -> _print fonksiyonuna entegrasyonu
+    
+    [/]** println() çıktı sonuna yeni satır ekler. normalde echo ile aynıdır.
+    
+    [/]** printf("string:str {:any}",format)
+        * printf(string,error) error, success, warning, info, çıktıyı formatlar.
+ 
+    [/]** input("bir sayı giriniz? ") ReadFile 
+ 
+
+******************************************************************************/
+
