@@ -26,13 +26,18 @@ _print:
     push rsi
     push rdi
     push r12
-    sub rsp, 32
+    # 4 push = 32 byte. 
+    # Return adresi (8) + RBP (8) + 32 = 48 byte. 
+    # 48, 16'nın katıdır. Hizalama şu an mükemmel.
+    # Ekstra 'sub rsp' yapmadan devam edebiliriz ya da 
+    # hizalamayı bozmamak için 16'nın katı (16, 32) eklemeliyiz.
+    sub rsp, 32 
 
-    /* Argümanları yığına (shadow space) yedekle */
-    mov [rbp + 16], rcx     /* Format string*/
-    mov [rbp + 24], rdx     /* arg1 */
-    mov [rbp + 32], r8      /* arg2 */
-    mov [rbp + 40], r9      /* arg3 */
+    # Argümanları shadow space'e yedekle (Bu alan çağıran tarafından RSP+40'ta hazırlandı)
+    mov [rbp + 16], rcx     # Format
+    mov [rbp + 24], rdx     # Arg 1 (Double bitleri burada)
+    mov [rbp + 32], r8      # Arg 2
+    mov [rbp + 40], r9      # Arg 3
 
     cmp qword ptr [stdout_handle], 0
     jne .skip_init
@@ -102,9 +107,11 @@ _print:
     jmp .loop
 
 .handle_float:
-    movq xmm0, qword ptr [rbx]
+    # rbx = [rbp + 24] (ilk argüman adresi)
+    # Kritik: Float değerleri 64-bit double olarak okuyoruz
+    movq xmm0, qword ptr [rbx] 
     add rbx, 8
-    mov rdx, r12
+    mov rdx, r12            # Hassasiyet
     call _putfloat_buf
     inc rsi
     jmp .loop
