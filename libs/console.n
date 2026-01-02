@@ -1,0 +1,64 @@
+:con; // Önek: con
+/*
+## Kullanım örneği.
+
+use console;
+
+# Konsolu başlat
+term = console.Console.init();
+
+# Kullanıcıdan isim al (Input)
+name = term.input("Adınız nedir? ");
+
+# Selamla
+print("Merhaba {name}!");
+
+# Bir tuşa basana kadar bekle
+print("Çıkmak için bir tuşa basın...");
+term.get_char();
+
+*/
+# ASM Importlar
+fn _io_get_std(t: i32): pointer {.importc.};
+fn _io_read_console(h: pointer, b: ptr, l: u32, r: ptr): i32 {.importc.};
+
+export group Console {
+    
+    struct Console {
+        stdin_h: pointer,
+        stdout_h: pointer
+    }
+
+    # Statik Yapıcı: Konsol sistemini başlatır
+    init => fn(): Console {
+        return Console {
+            stdin_h: _io_get_std(-10),
+            stdout_h: _io_get_std(-11)
+        };
+    }
+
+    # Method: Kullanıcıdan string girişi alır (input)
+    input => fn(self, prompt: str = ""): str {
+        if (prompt.len > 0) {
+            # _print.obj içindeki fonksiyonu kullanabiliriz
+            print(prompt); 
+        }
+
+        buffer: str = _alloc_str(1024); // 1KB tampon
+        read_count: u32 = 0;
+        
+        # Konsoldan oku
+        _io_read_console(self.stdin_h, buffer.ptr, 1024, read_count.addr);
+        
+        # Windows'un eklediği \r\n (CRLF) karakterlerini temizle (Trim)
+        return buffer.slice(0, read_count - 2); 
+    }
+
+    # Method: Tek bir karakter oku
+    get_char => fn(self): u8 {
+        char: u8 = 0;
+        read_count: u32 = 0;
+        _io_read_console(self.stdin_h, char.addr, 1, read_count.addr);
+        return char;
+    }
+}

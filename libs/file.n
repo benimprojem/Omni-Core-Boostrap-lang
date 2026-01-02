@@ -1,0 +1,221 @@
+:file; // Önek: file
+/*
+# NIMBLE File Modülü Kullanım Kılavuzu
+
+`file` modülü, Windows çekirdek API'lerini (Kernel32) doğrudan kullanan, yüksek performanslı ve güvenli bir dosya yönetim sistemidir.
+ Modül, veriyi (`struct`) ve davranışı (`group`) birbirinden ayırarak dosya handle'larını (işleyicilerini) güvenli bir şekilde gizler.
+
+## 1. Modülün Dahil Edilmesi
+Modülü kullanmak için dosyanın başında `use` anahtar kelimesi kullanılır:
+
+use file;
+
+## 2. Statik Fonksiyonlar (Dosya Oluşturma ve Kontrol)
+
+Bu fonksiyonlar doğrudan `file.File` grubu üzerinden çağrılır.
+
+### Dosya Açma (`open`) ve Oluşturma (`create`)
+* **`open`**: Mevcut bir dosyayı okuma veya yazma modunda açar.
+* **`create`**: Belirtilen yolda yeni bir dosya oluşturur. Dosya zaten varsa üzerine yazar.
+
+```nim
+// Bir dosyayı yazma modunda açalım
+f = file.File.open("notlar.txt", 0x40000000); 
+
+// Yeni bir dosya yaratalım
+f_yeni = file.File.create("yeni_dosya.bin");
+
+```
+
+### Yardımcı Araçlar
+Dosya varlığını kontrol etmek veya bir dosyayı silmek/kopyalamak için kullanılır.
+
+```nim
+is_there = file.File.exists("test.txt"); // Dosya var mı? (bool)
+
+if (is_there) {
+    file.File.copy("test.txt", "test_yedek.txt"); // Kopyala
+    file.File.remove("test.txt");                 // Sil
+}
+
+```
+
+---
+
+## 3. Nesne Metotları (Okuma ve Yazma)
+NIMBLE'ın **UFCS** desteği sayesinde, bu metotlar sanki nesnenin bir özelliğiymiş gibi çağrılabilir.
+### Yazma İşlemleri
+
+```nim
+f = file.File.open("log.txt", 0x40000000);
+
+f.write("Sisteme giriş yapıldı\n"); // String yazar
+f.write_bytes(buffer_ptr, 1024);   // Ham bayt yazar
+f.flush();                         // Veriyi hemen diske gönder
+
+```
+
+### Okuma İşlemleri
+
+```nim
+f = file.File.open("veri.txt", 0x80000000);
+
+icerik = f.read(100);     // İlk 100 baytı oku
+satir  = f.read_line();   // Bir satır oku (\n görene kadar)
+tum_dosya = f.read_all(); // Tüm dosyayı belleğe al
+
+```
+
+### İmleç Kontrolü ve Boyut
+
+```nim
+f.seek(0, 0);             // İmleci dosyanın en başına al
+konum = f.tell();         // Şu an kaçıncı bayttayız?
+toplam = f.size();        // Dosya kaç bayt?
+
+```
+
+---
+
+## 4. Güvenli Kapatma ve Kapsülleme
+Dosya ile işlem bittiğinde `close()` metodunun çağrılması, sistem kaynaklarının sızmasını (memory/handle leak) önler.
+
+```nim
+f.close();
+
+```
+---
+## 5. İleri Seviye: Hata Yönetimi (`?->` Operatörü)
+
+NIMBLE'ın hata yönetim sistemi ile dosya açma işlemlerini daha güvenli yapabilirsiniz:
+
+```nim
+// Dosya açılamazsa (Hata, Null veya False durumunda) sağdaki blok çalışır
+(f) <- file.File.open("gizli.txt", 0x80000000) ?-> {
+    print("Hata: Dosya açılamadı veya bulunamadı!");
+    return;
+};
+
+// Başarılı ise buradan devam eder
+f.read_line().print();
+f.close();
+
+```
+
+### Tasarım Notu (Architectural Note)
+
+`File` struct'ı grup içerisinde tanımlandığı için, kullanıcı doğrudan `f.handle` değerine erişemez veya bu değeri değiştiremez. 
+Tüm işlemler `File` grubu içerisindeki test edilmiş davranışlar üzerinden yürütülür. 
+Bu, **"Undeniable Logic"** prensibine uygun olarak çalışma zamanı hatalarını minimize eder.
+
+Mimari Notlar
+Shadow Space (40/56 byte): Windows x64 ABI gereği, çağrılan fonksiyonun register parametrelerini stack'e yedekleyebilmesi için her call öncesi rsp'den yer ayırdık.
+Stack Alignment: sub rsp, 40 veya 56 gibi değerler stack'in 16-byte hizalamasını koruyarak işlemcinin (CPU) performans kaybı yaşamasını engeller.
+Efficiency: Fonksiyonlar sadece gerekli API'leri çağırır, ara değişkenlerle register'ları kirletmez (Minimalism).
+
+*/
+:file;
+
+# --- ASM Imports (io.obj) ---
+fn _io_open(p: ptr, a: u32, s: u32, c: u32): pointer {.importc.};
+fn _io_close(h: pointer): i32 {.importc.};
+fn _io_read(h: pointer, b: ptr, l: u32, r: ptr): i32 {.importc.};
+fn _io_write(h: pointer, b: ptr, l: u32, w: ptr): i32 {.importc.};
+fn _io_seek(h: pointer, o: i64, m: i32): i32 {.importc.};
+fn _io_size(h: pointer, s: ptr): i32 {.importc.};
+fn _io_exists(p: ptr): bool {.importc.};
+fn _io_remove(p: ptr): bool {.importc.};
+fn _io_copy(s: ptr, d: ptr): bool {.importc.};
+fn _io_flush(h: pointer): i32 {.importc.};
+
+export group File {
+    
+    struct File {
+        handle: pointer,
+        path: str,
+        is_open: bool
+    }
+
+    # --- Static Functions (Constructors & Utilities) ---
+
+    open => fn(path: str, mode: u32): File {
+        h = _io_open(path.ptr, mode, 1, 3); // 3: OPEN_EXISTING
+        return File { handle: h, path: path, is_open: (h.int != -1) };
+    }
+
+    create => fn(path: str): File {
+        h = _io_open(path.ptr, 0x40000000, 1, 2); // 2: CREATE_ALWAYS
+        return File { handle: h, path: path, is_open: (h.int != -1) };
+    }
+
+    exists => fn(path: str) -> _io_exists(path.ptr);
+
+    remove => fn(path: str) -> _io_remove(path.ptr);
+
+    copy => fn(src: str, dest: str) -> _io_copy(src.ptr, dest.ptr);
+
+
+    # --- Instance Methods (Self) ---
+
+    read => fn(self, size: u32): str {
+        if (!self.is_open) -> return "";
+        buffer: str = _alloc_str(size); // Derleyici içi string tahsisi
+        read_count: u32 = 0;
+        _io_read(self.handle, buffer.ptr, size, read_count.addr);
+        return buffer;
+    }
+
+    read_line => fn(self): str {
+        # Satır okuma mantığı: \n karakterine kadar tek tek byte okur
+        line: str = "";
+        char: u8 = 0;
+        read_count: u32 = 0;
+        while (true) {
+            _io_read(self.handle, char.addr, 1, read_count.addr);
+            if (read_count == 0 || char == 10) -> break;
+            line = line + char.str();
+        }
+        return line;
+    }
+
+    read_all => fn(self): str {
+        s = self.size();
+        self.seek(0, 0); // Başa sar
+        return self.read(s.u32);
+    }
+
+    write => fn(self, data: str) {
+        if (!self.is_open) -> return;
+        written: u32 = 0;
+        _io_write(self.handle, data.ptr, data.len, written.addr);
+    }
+
+    write_bytes => fn(self, data: ptr, len: u32) {
+        if (!self.is_open) -> return;
+        written: u32 = 0;
+        _io_write(self.handle, data, len, written.addr);
+    }
+
+    seek => fn(self, offset: i64, origin: i32) -> _io_seek(self.handle, offset, origin);
+
+    tell => fn(self): i64 {
+        # SetFilePointerEx(handle, 0, FILE_CURRENT) mevcut konumu döndürür
+        return _io_seek(self.handle, 0, 1); 
+    }
+
+    size => fn(self): i64 {
+        if (!self.is_open) -> return 0;
+        file_size: i64 = 0;
+        _io_size(self.handle, file_size.addr);
+        return file_size;
+    }
+
+    flush => fn(self) -> _io_flush(self.handle);
+
+    close => fn(self) {
+        if (self.is_open) {
+            _io_close(self.handle);
+            self.is_open = false;
+        }
+    }
+}
