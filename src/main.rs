@@ -44,7 +44,7 @@ pub struct Config {
 }
 
 fn parse_config(args: Vec<String>) -> Result<Config, String> {
-    // YENİ: Varsayılan arama yollarına `./libs` eklendi.
+    // Varsayılan arama yollarına `./libs` eklendi.
     let mut include_paths = vec![".".to_string(), "./libs".to_string()];
     let mut input_file = String::new();
 
@@ -68,7 +68,7 @@ fn parse_config(args: Vec<String>) -> Result<Config, String> {
     let mut target_platform = TargetPlatform::Unknown;
     let mut show_help = false;
     let mut build_mode = BuildMode::Release;
-    let mut output_type = OutputType::Executable; // YENİ: Varsayılan olarak çalıştırılabilir dosya
+    let mut output_type = OutputType::Executable; // Varsayılan olarak çalıştırılabilir dosya
 
     while let Some(arg) = iter.next() {
         match arg.as_str() {
@@ -88,7 +88,7 @@ fn parse_config(args: Vec<String>) -> Result<Config, String> {
                     return Err("'--target' bayrağı bir platform (windows, linux, macos) bekliyor.".to_string());
                 }
             }
-            "--mode" => { // YENİ: Derleme modu bayrağı
+            "--mode" => { // Derleme modu bayrağı
                 if let Some(mode_str) = iter.next() {
                     build_mode = match mode_str.to_lowercase().as_str() {
                         "debug" => BuildMode::Debug,
@@ -99,7 +99,7 @@ fn parse_config(args: Vec<String>) -> Result<Config, String> {
                     return Err("'--mode' bayrağı bir mod (debug, release) bekliyor.".to_string());
                 }
             }
-            "--output-type" => { // YENİ: Çıktı tipi bayrağı
+            "--output-type" => { // Çıktı tipi bayrağı
                 if let Some(type_str) = iter.next() {
                     output_type = match type_str.to_lowercase().as_str() {
                         "exe" | "executable" => OutputType::Executable,
@@ -107,7 +107,7 @@ fn parse_config(args: Vec<String>) -> Result<Config, String> {
                         _ => return Err(format!("Bilinmeyen çıktı tipi: '{}'. Geçerli olanlar: exe, shared.", type_str)),
                     };
                 } else {
-                    return Err("'--output-type' bayrağı bir tip (exe, shared) bekliyor.".to_string());
+                    return Err("'--output-type' bayrağı bir tip (exe, dll, so, shared) bekliyor.".to_string());
                 }
             }
             _ if arg.starts_with("-I") => {
@@ -133,7 +133,7 @@ fn parse_config(args: Vec<String>) -> Result<Config, String> {
         }
     }
 
-    // YENİ: Eğer hedef platform belirtilmemişse, derleyicinin çalıştığı platformu varsay.
+    // Eğer hedef platform belirtilmemişse, derleyicinin çalıştığı platformu varsay.
     if target_platform == TargetPlatform::Unknown {
         target_platform = match env::consts::OS {
             "windows" => TargetPlatform::Windows,
@@ -158,16 +158,16 @@ fn parse_config(args: Vec<String>) -> Result<Config, String> {
 fn print_help() {
     println!("NIMBLE Derleyici v0.0.1 - Kullanım Kılavuzu");
     println!("----------------------------------------");
-    println!("Kullanım: nim <kaynak_dosya.nim> [seçenekler]\n");
+    println!("Kullanım: nim <kaynak_dosya.n> [seçenekler]\n");
     println!("Seçenekler:");
     println!("  -h, -help, --help      Bu yardım mesajını gösterir.");
     println!("  --target <platform>    Derleme hedefini belirtir. Platformlar: windows, linux, macos.");
-    println!("  --output-type <type>   Üretilecek çıktı tipini belirtir. Tipler: exe, shared (Varsayılan: exe).");
-    println!("  --mode <mode>          Derleme modunu belirtir. Modlar: debug, release (Varsayılan: release).");
     println!("                         (Varsayılan: Çalıştırıldığı sistem)");
+    println!("  --output-type <type>   Üretilecek çıktı tipini belirtir. Tipler: exe, dll, so, shared (Varsayılan: exe).");
+    println!("  --mode <mode>          Derleme modunu belirtir. Modlar: debug, release (Varsayılan: release).");
     println!("  -I <yol>               Modül arama yollarına ek bir dizin ekler.");
     println!("\nÖrnek:");
-    println!("  nim programim.nim --target windows -I ./ek_kutuphaneler");
+    println!("  nim programim.n --target windows -I ./ek_kutuphaneler");
 }
 
 fn main() {
@@ -179,7 +179,7 @@ fn main() {
         }
     };
 
-    // YENİ: Yardım gösterme kontrolü.
+    // Yardım gösterme kontrolü.
     if config.show_help {
         print_help();
         process::exit(0);
@@ -190,7 +190,7 @@ fn main() {
         process::exit(1);
     });
 
-    println!(">>> NIMBLE Derleyicisi v0.0.1");
+    println!(">>> NIMBLE (nim) Derleyicisi v0.0.1");
     println!(">>> Aşama 1: Lexer (Sözcük Analizi)");
     
     // Lexer
@@ -247,7 +247,7 @@ fn main() {
         }
     }
 
-    // YENİ: Kod Üretimi Aşaması
+    // Kod Üretimi Aşaması
     println!("\n>>> Aşama 4: Kod Üretimi (Codegen)");
     let mut codegen = Codegen::new(&program_decls, &mut type_checker, config.target_platform);
     match codegen.generate() {
@@ -262,14 +262,14 @@ fn main() {
             fs::create_dir_all(obj_dir).expect("Nesne dizini oluşturulamadı.");
             fs::create_dir_all(exe_base_dir).expect("Çalıştırılabilir dizini oluşturulamadı.");
 
-            // Giriş dosyasından temel adı al (örn: "test1.nim" -> "test1")
+            // Giriş dosyasından temel adı al (örn: "test1.n" -> "test1")
             let base_name = std::path::Path::new(&config.input_file)
                 .file_stem()
                 .and_then(|s| s.to_str())
                 .unwrap_or("output")
                 .to_string();
 
-            // YENİ: Hedef platforma göre dosya uzantılarını ve isimlerini belirle
+            // Hedef platforma göre dosya uzantılarını ve isimlerini belirle
             let (_platform_suffix, _obj_ext, output_ext) = match config.target_platform {
                 TargetPlatform::Windows => ("windows", "obj", if config.output_type == OutputType::Executable { ".exe" } else { ".dll" }),
                 TargetPlatform::Linux => ("linux", "o", if config.output_type == OutputType::Executable { "" } else { ".so" }),
@@ -278,8 +278,8 @@ fn main() {
             };
 
             let output_asm_file = format!("{}/{}.s", obj_dir, base_name); // GAS typically uses .s or .asm
-            let output_obj_file = format!("{}/{}.o", obj_dir, base_name);
-            let output_final_file = format!("{}/{}{}", exe_base_dir, base_name, output_ext);
+            let output_obj_file = format!("{}/{}.o", obj_dir, base_name); // Object file
+            let output_final_file = format!("{}/{}{}", exe_base_dir, base_name, output_ext); // Output File
 
             fs::write(&output_asm_file, asm_code).expect("Assembly dosyası yazılamadı.");
             println!("✅ GAS (Intel) kodu başarıyla '{}' dosyasına yazıldı.", output_asm_file);
@@ -301,9 +301,9 @@ fn main() {
                 TargetPlatform::Windows => (
                     "gcc",
                     if config.output_type == OutputType::Executable {
-                        vec![output_obj_file.to_string(), "libs/_print.obj".to_string(), "-o".to_string(), output_final_file.to_string()]
+                        vec![output_obj_file.to_string(), "libs/core.obj".to_string(), "-o".to_string(), output_final_file.to_string()]
                     } else { // SharedLibrary (DLL)
-                        vec!["-shared".to_string(), output_obj_file.to_string(), "libs/_print.obj".to_string(), "-o".to_string(), output_final_file.to_string()]
+                        vec!["-shared".to_string(), output_obj_file.to_string(), "libs/core.obj".to_string(), "-o".to_string(), output_final_file.to_string()]
                     }
                 ),
                 TargetPlatform::Linux => (

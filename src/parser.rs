@@ -1634,7 +1634,22 @@ impl Parser {
             // YENİ: print, input gibi yerleşik fonksiyonları bir değişken adı gibi ele al.
             // Bu, parse_call'un onları bir fonksiyon çağrısı olarak işlemesini sağlar.
             TokenType::Print => { self.advance(); Expr::Variable("print".to_string()) },
-            TokenType::Input => { self.advance(); Expr::Variable("input".to_string()) },
+            TokenType::Input => {
+                self.advance(); // 'input' kelimesini tüket
+                
+                // Parantezleri ve opsiyonel argümanı işle
+                self.consume(TokenType::LParen, "input'tan sonra '(' bekleniyor.");
+                
+                let mut prompt = None;
+                if self.peek_kind() != TokenType::RParen {
+                    prompt = Some(Box::new(self.parse_expression())); // İçerideki ifadeyi parse et
+                }
+                
+                self.consume(TokenType::RParen, "input'tan sonra ')' bekleniyor.");
+                
+                // Doğru dönüş yapısı:
+                Expr::Input(prompt) 
+            }
             TokenType::Strlen => { self.advance(); Expr::Variable("strlen".to_string()) },
             TokenType::Arrlen => { self.advance(); Expr::Variable("arrlen".to_string()) },
             TokenType::Panic => { self.advance(); Expr::Variable("panic".to_string()) },

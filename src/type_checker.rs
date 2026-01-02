@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 use std::fs;
-use crate::ast::{Decl, Expr, LiteralValue, Stmt, Type, BinOp, UnOp, TargetPlatform}; // YENİ: TargetPlatform'u ast'den al.
+use crate::ast::{Decl, Expr, LiteralValue, Stmt, Type, BinOp, UnOp, TargetPlatform}; //  TargetPlatform'u ast'den al.
 use crate::{lexer::Lexer, parser::Parser};
 
 // YENİ YAPI: Değişkenin tipini ve özelliklerini tutar
@@ -11,7 +11,7 @@ pub struct VarInfo {
     pub _is_mutable: bool,
 }
 
-// YENİ: Normal bir 'group' bloğunun içeriğini saklamak için.
+//  Normal bir 'group' bloğunun içeriğini saklamak için.
 #[derive(Debug, Clone, Default)]
 pub struct GroupContent {
     // Grup içindeki fonksiyonlar: isim -> imza
@@ -23,37 +23,37 @@ pub struct GroupContent {
 pub struct TypeChecker<'a> {
 	// Fonksiyon imzalarını (parametre tipleri, dönüş tipi) sakla
 	pub function_signatures: HashMap<String, (Vec<(String, Type, bool)>, Type, bool, bool)>, // (params, return_type, is_inline, is_public)
-    // YENİ: Struct tanımlarını sakla: Struct Adı -> Alan Adı -> Alan Tipi
+    //  Struct tanımlarını sakla: Struct Adı -> Alan Adı -> Alan Tipi
     pub struct_definitions: HashMap<String, HashMap<String, Type>>,
-    // YENİ: Enum tanımlarını sakla: Enum Adı -> (Üye Adı -> Üye Tipi)
+    //  Enum tanımlarını sakla: Enum Adı -> (Üye Adı -> Üye Tipi)
     pub enum_definitions: HashMap<String, HashMap<String, Type>>,
-    // YENİ: Metot imzalarını sakla: Struct Adı -> Metot Adı -> (Parametreler, Dönüş Tipi)
+    //  Metot imzalarını sakla: Struct Adı -> Metot Adı -> (Parametreler, Dönüş Tipi)
     pub method_signatures: HashMap<String, HashMap<String, (Vec<(String, Type, bool)>, Type, bool)>>, // NEW: is_public eklendi
-    // YENİ: Tip takma adlarını sakla: Takma Ad -> Gerçek Tip
+    //  Tip takma adlarını sakla: Takma Ad -> Gerçek Tip
     pub type_aliases: HashMap<String, Type>,
-    // YENİ: Normal grup tanımlarını sakla: Grup Adı -> Grup İçeriği
+    //  Normal grup tanımlarını sakla: Grup Adı -> Grup İçeriği
     pub group_definitions: HashMap<String, GroupContent>,
-    // YENİ: Modül takma adlarını sakla: Takma Ad -> Gerçek Modül Adı
+    //  Modül takma adlarını sakla: Takma Ad -> Gerçek Modül Adı
     pub module_aliases: HashMap<String, String>,
     pub expected_return_type: Type,
-    // YENİ: Hangi modüllerin zaten yüklendiğini takip et.
+    //  Hangi modüllerin zaten yüklendiğini takip et.
     pub loaded_modules: HashSet<String>,
-    // YENİ: Modül arama yolları
-    // YENİ: Modül arama yolları
+    //  Modül arama yolları
+    //  Modül arama yolları
     pub include_paths: Vec<String>,
-    // YENİ: Kullanıcı tanımlı stiller: Stil Adı -> Stil Kodu (ANSI)
+    //  Kullanıcı tanımlı stiller: Stil Adı -> Stil Kodu (ANSI)
     pub styles: HashMap<String, String>,
     
     pub scopes: Vec<HashMap<String, VarInfo>>,
-    // YENİ: Mevcut kontrol edilen fonksiyonun bilgilerini sakla.
+    //  Mevcut kontrol edilen fonksiyonun bilgilerini sakla.
     current_function_name: Option<String>,
     current_function_params: Vec<(String, Type, Option<Expr>)>,
-    // YENİ: `fastexec` bloğu içinde olup olmadığımızı takip et.
+    //  `fastexec` bloğu içinde olup olmadığımızı takip et.
     in_fastexec_block: bool,
 
     pub labels: Vec<HashSet<String>>,
     program: &'a [Decl], // Reference to the whole program AST
-    target_platform: TargetPlatform, // YENİ: Hedef platformu sakla.
+    target_platform: TargetPlatform, //  Hedef platformu sakla.
 }
 
 impl<'a> TypeChecker<'a> {
@@ -84,19 +84,19 @@ impl<'a> TypeChecker<'a> {
         checker.function_signatures.insert("print".to_string(),  (vec![("message".to_string(), Type::Any, false), ("style".to_string(), Type::Str(None), true)], Type::Void, false, true));
         checker.function_signatures.insert("println".to_string(),(vec![("message".to_string(), Type::Any, false), ("style".to_string(), Type::Str(None), true)], Type::Void, false, true));
         checker.function_signatures.insert("eprint".to_string(), (vec![("message".to_string(), Type::Any, false)], Type::Void, false, true));
-        checker.function_signatures.insert("input".to_string(),  (vec![], Type::Str(None), false, true));
+        checker.function_signatures.insert("input".to_string(),  (vec![("prompt".to_string(), Type::Str(None), false)], Type::Str(None), false, true));
         checker.function_signatures.insert("strlen".to_string(), (vec![("s".to_string(), Type::Str(None), false)], Type::I32, false, true));
         checker.function_signatures.insert("arrlen".to_string(), (vec![("arr".to_string(), Type::Array(Box::new(Type::Any), None), false)], Type::I32, false, true));
         checker.function_signatures.insert("panic".to_string(),  (vec![("message".to_string(), Type::Str(None), false)], Type::Never, false, true));
         checker.function_signatures.insert("exit".to_string(),   (vec![("code".to_string(), Type::I32, false)], Type::Never, false, true));
-		// YENİ: Kanal oluşturma fonksiyonu
+		//  Kanal oluşturma fonksiyonu
         checker.function_signatures.insert("make_channel".to_string(), (vec![("capacity".to_string(), Type::I32, true)], Type::Any, false, true));
 
-        // YENİ: Komut satırı argüman fonksiyonları artık yerleşik ve global.
+        //  Komut satırı argüman fonksiyonları artık yerleşik ve global.
         checker.function_signatures.insert("args".to_string(), (vec![], Type::Array(Box::new(Type::Str(None)), None), false, true));
         checker.function_signatures.insert("arg_count".to_string(), (vec![], Type::I32, false, true));
 
-        // YENİ: Tip dönüşüm fonksiyonları
+        //  Tip dönüşüm fonksiyonları
         checker.function_signatures.insert("_int".to_string(),   (vec![("val".to_string(), Type::Any, false)], Type::I64, false, true));
         checker.function_signatures.insert("_str".to_string(),   (vec![("val".to_string(), Type::Any, false)], Type::Str(None), false, true));
         checker.function_signatures.insert("_float".to_string(), (vec![("val".to_string(), Type::Any, false)], Type::F64, false, true));
@@ -174,7 +174,7 @@ impl<'a> TypeChecker<'a> {
 			if let Decl::Function { name, params, return_type, is_async, is_inline, is_public, .. } = decl {
 				// (param name, param type, has default)
 				let param_info: Vec<(String, Type, bool)> = params.iter().map(|(n, t, d)| (n.clone(), t.clone(), d.is_some())).collect();
-                // YENİ: Eğer fonksiyon 'async' ise, dönüş tipini Future<T> olarak sarmala.
+                //  Eğer fonksiyon 'async' ise, dönüş tipini Future<T> olarak sarmala.
                 let final_return_type = if *is_async {
                     Type::Future(Box::new(return_type.clone()))
                 } else {
@@ -182,7 +182,7 @@ impl<'a> TypeChecker<'a> {
                 };
 				self.function_signatures.insert(name.clone(), (param_info, final_return_type, *is_inline, *is_public));
 			} else if let Decl::Struct { name, fields, .. } = decl {
-                // YENİ: Struct tanımını kaydet
+                //  Struct tanımını kaydet
                 if self.struct_definitions.contains_key(name) {
                     return Err(format!("Hata: '{}' struct'ı zaten tanımlanmış.", name));
                 }
@@ -218,7 +218,7 @@ impl<'a> TypeChecker<'a> {
                 }
                 self.type_aliases.insert(name.clone(), target.clone());
 			} else if let Decl::Group { name, body, .. } = decl {
-                // YENİ: Eğer group adı bir struct adıyla eşleşiyorsa, bunu bir metot bloğu olarak işle.
+                //  Eğer group adı bir struct adıyla eşleşiyorsa, bunu bir metot bloğu olarak işle.
                 if self.struct_definitions.contains_key(name) {
                     let mut new_methods = Vec::new();
                     for decl in body {
@@ -246,7 +246,7 @@ impl<'a> TypeChecker<'a> {
                         method_map.insert(name, signature);
                     }
                 } else {
-                    // YENİ: Normal 'group' bloklarını işle.
+                    //  Normal 'group' bloklarını işle.
                     if self.group_definitions.contains_key(name) {
                         return Err(format!("Hata: '{}' grubu zaten tanımlanmış.", name));
                     }
@@ -310,7 +310,7 @@ impl<'a> TypeChecker<'a> {
                 }
             }
 		}
-        // YENİ: Çıktıyı daha anlamlı hale getir. Sadece kullanıcı tanımlı ve içe aktarılan fonksiyonları listele.
+        //  Çıktıyı daha anlamlı hale getir. Sadece kullanıcı tanımlı ve içe aktarılan fonksiyonları listele.
         let built_in_functions: HashSet<_> = ["echo", "print", "input", "strlen", "arrlen", "panic", "exit", "make_channel"].iter().cloned().collect();
         let user_defined_functions: Vec<_> = self.function_signatures.keys()
             .filter(|&name| !built_in_functions.contains(name.as_str()))
@@ -332,7 +332,7 @@ impl<'a> TypeChecker<'a> {
 			match decl {
 				Decl::Function { name, params, return_type, body, is_async, .. } => {
 					// 'async' bir fonksiyonun İÇİNDEKİ return'ler Future<T> değil, T döndürür.
-                    // YENİ: Mevcut fonksiyon bilgilerini güncelle.
+                    //  Mevcut fonksiyon bilgilerini güncelle.
                     self.current_function_name = Some(name.clone());
                     self.current_function_params = params.clone();
 					self.expected_return_type = return_type.clone();
@@ -358,7 +358,7 @@ impl<'a> TypeChecker<'a> {
 					}
 
 					self.pop_scope()?;
-                    // YENİ: Fonksiyon kontrolü bitti, bilgileri temizle.
+                    //  Fonksiyon kontrolü bitti, bilgileri temizle.
                     self.current_function_name = None;
                     self.current_function_params.clear();
 				},
@@ -392,7 +392,7 @@ impl<'a> TypeChecker<'a> {
         Ok(())
     }
 
-    // YENİ: Modül yükleme mantığı
+    //  Modül yükleme mantığı
     fn load_module(&mut self, module_path: &str) -> Result<Decl, String> {
         if self.loaded_modules.contains(module_path) {
             // Modül zaten işlendi, ancak AST'sini yeniden ayrıştırmamız gerekebilir.
@@ -402,7 +402,7 @@ impl<'a> TypeChecker<'a> {
         // Dosya adını oluştur (örn: "my/utils" -> "my/utils.nim")
         let file_name = format!("{}.nim", module_path);
 
-        // YENİ: Tüm include yollarında modülü ara.
+        //  Tüm include yollarında modülü ara.
         let mut source: Option<String> = None;
         for path_prefix in &self.include_paths {
             let full_path = std::path::Path::new(path_prefix).join(&file_name);
@@ -420,7 +420,7 @@ impl<'a> TypeChecker<'a> {
 
         // Modülün kaynak kodunu ayrıştır
         let mut lexer = Lexer::new(&source);
-        // YENİ: Token toplama mantığını, Eof'u da içerecek ve sonsuz döngüyü önleyecek şekilde düzelt.
+        //  Token toplama mantığını, Eof'u da içerecek ve sonsuz döngüyü önleyecek şekilde düzelt.
         let mut tokens = Vec::new();
         loop {
             let token = lexer.next_token();
@@ -441,7 +441,7 @@ impl<'a> TypeChecker<'a> {
         Ok(ast)
     }
 
-    // YENİ: Bir modüldeki tüm `pub` öğeleri içe aktarır.
+    //  Bir modüldeki tüm `pub` öğeleri içe aktarır.
     fn import_all_from_module(&mut self, module_path: &str) -> Result<(), String> {
         let ast = self.load_module(module_path)?;
 
@@ -486,7 +486,7 @@ impl<'a> TypeChecker<'a> {
                         self.type_aliases.insert(name.clone(), target.clone());
                     }
                 } else if let Decl::StmtDecl(stmt) = decl {
-                    // YENİ: `pub const` gibi üst düzey deyimleri işle.
+                    //  `pub const` gibi üst düzey deyimleri işle.
                     if let Stmt::VarDecl { name, ty, is_const, is_let, is_public, .. } = &*stmt {
                          if *is_public {
                             if *is_const || *is_let {
@@ -504,12 +504,12 @@ impl<'a> TypeChecker<'a> {
                         }
                     }
                 } else if let Decl::Use { path, spec, is_export } = decl {
-                    // YENİ: Eğer `export use ...` varsa, bu modülün öğelerini de içe aktar.
+                    //  Eğer `export use ...` varsa, bu modülün öğelerini de içe aktar.
                     if is_export {
                         self.handle_use_declaration(&path, &spec, true)?;
                     }
                 } else if let Decl::Group { name, is_export, body, .. } = decl {
-                    // YENİ: `export group ...` bildirimini işle.
+                    //  `export group ...` bildirimini işle.
                     if is_export {
                         if self.group_definitions.contains_key(&name) {
                             println!("Uyarı: '{}' modülünden içe aktarılan '{}' grubu zaten tanımlı, üzerine yazılmıyor.", module_path, name);
@@ -544,7 +544,7 @@ impl<'a> TypeChecker<'a> {
         Ok(())
     }
 
-    // YENİ: Belirli bir öğeyi modülden içe aktarır.
+    //  Belirli bir öğeyi modülden içe aktarır.
     fn import_item_from_module(&mut self, module_path: &str, original_name: &str, final_name_opt: Option<&String>) -> Result<(), String> {
         let ast = self.load_module(module_path)?;
         let final_name = final_name_opt.unwrap_or(&original_name.to_string()).clone();
@@ -595,9 +595,9 @@ impl<'a> TypeChecker<'a> {
         Ok(())
     }
 
-    // YENİ: `use` ve `export use` bildirimlerini işleyen merkezi fonksiyon.
+    //  `use` ve `export use` bildirimlerini işleyen merkezi fonksiyon.
     fn handle_use_declaration(&mut self, path: &Vec<String>, spec: &crate::ast::UseSpec, is_reexport: bool) -> Result<(), String> {
-        // YENİ: Platforma özel modül yükleme mantığı
+        //  Platforma özel modül yükleme mantığı
         let mut processed_path = path.clone();
         if let Some(last_part) = processed_path.last_mut() {
             if *last_part == "platform" {
@@ -669,7 +669,7 @@ impl<'a> TypeChecker<'a> {
 				if *is_const && *is_mutable {
 					return Err(format!("Hata: '{}' hem sabit (const) hem de değiştirilebilir (mut) olarak tanımlanamaz.", name));
 				}
-                // YENİ: Değişkenin tipi bir struct, enum veya takma ad ise, geçerli olup olmadığını kontrol et.
+                //  Değişkenin tipi bir struct, enum veya takma ad ise, geçerli olup olmadığını kontrol et.
                 if let Type::Custom(type_name) = self.resolve_type(ty)? {
                     // Eğer bu bir enum ise, onu özel Enum tipine dönüştür.
                     if self.enum_definitions.contains_key(&type_name) {
@@ -677,98 +677,101 @@ impl<'a> TypeChecker<'a> {
                     } else if !self.struct_definitions.contains_key(&type_name) 
                            && !self.function_signatures.contains_key(&type_name)
                            && !self.type_aliases.contains_key(&type_name) {
-                        return Err(format!("Hata: Bilinmeyen tip '{}' kullanıldı.", type_name));
-                    }
+                                return Err(format!("Hata: Bilinmeyen tip '{}' kullanıldı.", type_name));
+                            }
                 }
-									if let Some(init_expr) = init {
-						let init_type = self.type_of_expr(init_expr)?;
-                        // YENİ: Karşılaştırma yapmadan önce deklare edilen tipi çözümle.
-                        // Bu, typedef'lerin (örn: UserID) temel tipleriyle (örn: u64) doğru şekilde karşılaştırılmasını sağlar.
-                        let resolved_ty = self.resolve_type(ty)?;
+                if let Some(init_expr) = init {
+                    let init_type = self.type_of_expr(init_expr)?;
+                    //  Karşılaştırma yapmadan önce deklare edilen tipi çözümle.
+                    // Bu, typedef'lerin (örn: UserID) temel tipleriyle (örn: u64) doğru şekilde karşılaştırılmasını sağlar.
+                    let resolved_ty = self.resolve_type(ty)?;
 
-						// Decimal tiplere float atamasını kontrol et
-						let allow_decimal_float_assignment_var_decl = match (ty, &init_type) {
-							(Type::D32 | Type::D64 | Type::D128, Type::F32 | Type::F64 | Type::F80 | Type::F128) => true,
-							_ => false,
-						};
+                    // Decimal tiplere float atamasını kontrol et
+                    let allow_decimal_float_assignment_var_decl = match (ty, &init_type) {
+                        (Type::D32 | Type::D64 | Type::D128, Type::F32 | Type::F64 | Type::F80 | Type::F128) => true,
+                        _ => false,
+                    };
 
-						// Bit tipine integer literal atamasını kontrol et (0 veya 1)
-						let allow_bit_int_assignment_var_decl = match (ty, init_expr) {
-							(Type::Bit, Expr::Literal(LiteralValue::Int(val))) if *val == 0 || *val == 1 => true,
-							_ => false,
-						};
+                    // Bit tipine integer literal atamasını kontrol et (0 veya 1)
+                    let allow_bit_int_assignment_var_decl = match (ty, init_expr) {
+                        (Type::Bit, Expr::Literal(LiteralValue::Int(val))) if *val == 0 || *val == 1 => true,
+                        _ => false,
+                    };
 
-						// Bit dizisine integer literal atamasını kontrol et
-						let allow_int_to_bit_array_assignment = match (ty, init_expr) {
-							(Type::Array(inner, _), Expr::Literal(LiteralValue::Int(_))) if **inner == Type::Bit => true,
-							_ => false,
-						};
-                        
-                        // I32 literalden Byte atamasına izin ver
-                        let allow_byte_i32_assignment_var_decl = match (ty, init_expr) {
-                            (Type::Byte, Expr::Literal(LiteralValue::Int(val))) if *val >= 0 && *val <= 255 => true,
-                            _ => false,
-                        };
-                        
-                        // I32 literalden Hex atamasına izin ver
-                        let allow_hex_i32_assignment_var_decl = match (ty, init_expr) {
-                            (Type::Hex, Expr::Literal(LiteralValue::Int(val))) if *val >= 0 && *val <= 255 => true,
-                            _ => false,
-                        };
+                    // Bit dizisine integer literal atamasını kontrol et
+                    let allow_int_to_bit_array_assignment = match (ty, init_expr) {
+                        (Type::Array(inner, _), Expr::Literal(LiteralValue::Int(_))) if **inner == Type::Bit => true,
+                        _ => false,
+                    };
+                    
+                    // I32 literalden Byte atamasına izin ver
+                    let allow_byte_i32_assignment_var_decl = match (ty, init_expr) {
+                        (Type::Byte, Expr::Literal(LiteralValue::Int(val))) if *val >= 0 && *val <= 255 => true,
+                        _ => false,
+                    };
+                    
+                    // I32 literalden Hex atamasına izin ver
+                    let allow_hex_i32_assignment_var_decl = match (ty, init_expr) {
+                        (Type::Hex, Expr::Literal(LiteralValue::Int(val))) if *val >= 0 && *val <= 255 => true,
+                        _ => false,
+                    };
 
-						if let (Type::Array(expected_inner_type, _), Type::ArrayLiteral(element_types)) = (&resolved_ty, &init_type) {
-							if !element_types.is_empty() {
-								let first_element_type = &element_types[0];
-								for element_type in element_types.iter().skip(1) {
-									if element_type != first_element_type {
-										return Err(format!("Hata: Dizi başlatıcısındaki tüm elemanlar aynı tipte olmalıdır. Bulunan tipler: {:?}.", element_types));
-									}
-								}
-								if expected_inner_type.as_ref() != &Type::Unknown && expected_inner_type.as_ref() != first_element_type {
-									return Err(format!("Hata: '{}' dizisine atanmaya çalışılan eleman tipi ({:?}), beklenen tip ({:?}) ile uyuşmuyor.", name, first_element_type, expected_inner_type.as_ref()));
-								}
-							}
-						} else if let Type::Fn(param_types, ret_type) = &resolved_ty {
-							if let Expr::Variable(fn_name) = init_expr {
-								if let Some((expected_params, expected_ret, _, _)) = self.function_signatures.get(fn_name) {
-									let expected_param_types: Vec<_> = expected_params.iter().map(|(_, ty, _)| ty.clone()).collect();
-									if &expected_param_types != param_types || expected_ret != ret_type.as_ref() {
-										return Err(format!("Hata: '{}' fonksiyonuna atanan fonksiyon imzası uyumsuz.", name));
-									}
-								} else {
-									return Err(format!("Hata: Atanmaya çalışılan '{}' fonksiyonu bulunamadı.", fn_name));
-								}
-							} else if let Expr::Lambda { params, return_type, .. } = init_expr {
-								let lam_param_types: Vec<_> = params.iter().map(|(_, ty, _)| ty.clone()).collect();
-								if &lam_param_types != param_types || return_type != ret_type.as_ref() {
-									return Err(format!("Hata: '{}' değişkenine atanan lambda imzası uyumsuz.", name));
-								}
-							} else if init_type != resolved_ty {
-								return Err(format!("Hata: '{}' değişkenine atanmaya çalışılan tip ({:?}), deklare edilen tip ({:?}) ile uyuşmuyor.", name, init_type, &resolved_ty));
-							}
-						} else if init_type != resolved_ty && resolved_ty != Type::Any && init_type != Type::Any && init_type != Type::Null {
-							// YENİ: Enum tipine temel tamsayı tipinin atanmasına izin ver.
-                            if let (Type::Enum(_, base_type), other) = (&resolved_ty, &init_type) {
-                                if other.is_integer() && base_type.is_integer() {
-                                    // Tipler uyumlu, devam et.
-                                } else {
-                                    return Err(format!("Hata: '{}' enum değişkenine atanmaya çalışılan tip ({:?}), beklenen tamsayı tabanlı tip ile uyuşmuyor.", name, init_type));
+                    if let (Type::Array(expected_inner_type, _), Type::ArrayLiteral(element_types)) = (&resolved_ty, &init_type) {
+                        if !element_types.is_empty() {
+                            let first_element_type = &element_types[0];
+                            for element_type in element_types.iter().skip(1) {
+                                if element_type != first_element_type {
+                                    return Err(format!("Hata: Dizi başlatıcısındaki tüm elemanlar aynı tipte olmalıdır. Bulunan tipler: {:?}.", element_types));
                                 }
-                            } else { // Eski mantık
-							let allow_float_literal_narrowing = ty.is_float() && init_type.is_float() && matches!(init_expr, Expr::Literal(LiteralValue::Float(_)));
-							// Pozitif I32 literal'den U* tiplerine (ve çözümlenmiş tipe) atamaya izin ver
-							let allow_i32_to_unsigned_literal = resolved_ty.is_unsigned_integer() && init_type == Type::I32 && matches!(init_expr, Expr::Literal(LiteralValue::Int(val)) if *val >= 0);
-                            // YENİ: 'arr' tipine bir dizi literali atanmasına izin ver.
+                            }
+                            if expected_inner_type.as_ref() != &Type::Unknown && expected_inner_type.as_ref() != first_element_type {
+                                return Err(format!("Hata: '{}' dizisine atanmaya çalışılan eleman tipi ({:?}), beklenen tip ({:?}) ile uyuşmuyor.", name, first_element_type, expected_inner_type.as_ref()));
+                            }
+                        }
+                    } else if let Type::Fn(param_types, ret_type) = &resolved_ty {
+                        if let Expr::Variable(fn_name) = init_expr {
+                            if let Some((expected_params, expected_ret, _, _)) = self.function_signatures.get(fn_name) {
+                                let expected_param_types: Vec<_> = expected_params.iter().map(|(_, ty, _)| ty.clone()).collect();
+                                if &expected_param_types != param_types || expected_ret != ret_type.as_ref() {
+                                    return Err(format!("Hata: '{}' fonksiyonuna atanan fonksiyon imzası uyumsuz.", name));
+                                }
+                            } else {
+                                return Err(format!("Hata: Atanmaya çalışılan '{}' fonksiyonu bulunamadı.", fn_name));
+                            }
+                        } else if let Expr::Lambda { params, return_type, .. } = init_expr {
+                            let lam_param_types: Vec<_> = params.iter().map(|(_, ty, _)| ty.clone()).collect();
+                            if &lam_param_types != param_types || return_type != ret_type.as_ref() {
+                                return Err(format!("Hata: '{}' değişkenine atanan lambda imzası uyumsuz.", name));
+                            }
+                        } else if init_type != resolved_ty {
+                            return Err(format!("Hata: '{}' değişkenine atanmaya çalışılan tip ({:?}), deklare edilen tip ({:?}) ile uyuşmuyor.", name, init_type, &resolved_ty));
+                        }
+                    } else if init_type != resolved_ty && resolved_ty != Type::Any && init_type != Type::Any && init_type != Type::Null {
+                        
+                        //  Enum tipine temel tamsayı tipinin atanmasına izin ver.
+                        if let (Type::Enum(_, base_type), other) = (&resolved_ty, &init_type) {
+                            if other.is_integer() && base_type.is_integer() {
+                                // Tipler uyumlu, devam et.
+                            } else {
+                                return Err(format!("Hata: '{}' enum değişkenine atanmaya çalışılan tip ({:?}), beklenen tamsayı tabanlı tip ile uyuşmuyor.", name, init_type));
+                            }
+                        } else {
+                            let allow_float_literal_narrowing = ty.is_float() && init_type.is_float() && matches!(init_expr, Expr::Literal(LiteralValue::Float(_)));
+                            
+                            // Pozitif I32 literal'den U* tiplerine (ve çözümlenmiş tipe) atamaya izin ver
+                            let allow_i32_to_unsigned_literal = resolved_ty.is_unsigned_integer() && init_type == Type::I32 && matches!(init_expr, Expr::Literal(LiteralValue::Int(val)) if *val >= 0);
+                            
+                            //  'arr' tipine bir dizi literali atanmasına izin ver.
                             let allow_arr_assignment = match (&resolved_ty, &init_type) {
                                 (Type::Arr, Type::ArrayLiteral(_)) => true,
                                 _ => false,
                             };
 
-							if !resolved_ty.can_be_assigned_from(&init_type) && !allow_decimal_float_assignment_var_decl && !allow_bit_int_assignment_var_decl && !allow_int_to_bit_array_assignment && !allow_byte_i32_assignment_var_decl && !allow_hex_i32_assignment_var_decl && !allow_float_literal_narrowing && !allow_i32_to_unsigned_literal && !allow_arr_assignment {
-								return Err(format!("Hata: '{}' değişkenine atanmaya çalışılan tip ({:?}), deklare edilen tip ({:?}) ile uyuşmuyor.", name, init_type, &resolved_ty));
-							}
+                            if !resolved_ty.can_be_assigned_from(&init_type) && !allow_decimal_float_assignment_var_decl && !allow_bit_int_assignment_var_decl && !allow_int_to_bit_array_assignment && !allow_byte_i32_assignment_var_decl && !allow_hex_i32_assignment_var_decl && !allow_float_literal_narrowing && !allow_i32_to_unsigned_literal && !allow_arr_assignment {
+                                return Err(format!("Hata: '{}' değişkenine atanmaya çalışılan tip ({:?}), deklare edilen tip ({:?}) ile uyuşmuyor.", name, init_type, &resolved_ty));
                             }
-						}
+                        }
+                    }
 				
 				}
 				let mut resolved_ty = self.resolve_type(ty)?;
@@ -785,7 +788,7 @@ impl<'a> TypeChecker<'a> {
 					is_const: *is_const,
 					_is_mutable: *is_mutable,
 				};
-                // YENİ: Eğer tip bir enum ise, onu Custom'dan Enum(name, base_type)'a dönüştür.
+                //  Eğer tip bir enum ise, onu Custom'dan Enum(name, base_type)'a dönüştür.
                 if let Type::Custom(name) = &info.ty {
                     if let Some(variants) = self.enum_definitions.get(name) {
                         if let Some(first_variant) = variants.values().next() {
@@ -795,12 +798,7 @@ impl<'a> TypeChecker<'a> {
                         }
                     }
                 }
-/*
-				// YENİ: Eğer tip 'arr' ise, bunu tip çıkarımı için 'Array(Array, None)'a dönüştür.
-				if info.ty == Type::Arr {
-					info.ty = Type::Array(Box::new(Type::Array), None);
-				}
-*/
+
 				if let (Type::Array(inner, _), Some(init_expr)) = (&mut info.ty, init) {
 					if **inner == Type::Unknown {
 						// 'var x: arr = [1, 2, 3]' gibi bir durumda tip çıkarımı yap.
@@ -844,7 +842,7 @@ impl<'a> TypeChecker<'a> {
                         if var_info.is_const {
                             return Err(format!("Hata: Sabit (const) değişken '{}' yeniden atanamaz.", name));
                         }
-                        // YENİ: 'let' ile tanımlanmış ama 'mut' olmayan değişkenlere atamayı engelle.
+                        //  'let' ile tanımlanmış ama 'mut' olmayan değişkenlere atamayı engelle.
                         if !var_info._is_mutable && !var_info.is_const {
                             return Err(format!("Hata: Değiştirilemeyen (immutable) değişken '{}' yeniden atanamaz. Değiştirmek için 'mut let' veya 'var' kullanın.", name));
                         }
@@ -933,7 +931,7 @@ impl<'a> TypeChecker<'a> {
                         // Durum 1: `for i in my_array`
                         Type::Array(inner, _) => *inner,
                         Type::Arr => Type::Any, // 'arr' tipiyle döngü kuruluyorsa, eleman tipini 'Any' kabul et.
-                        // YENİ: Durum 2: `for i in 0..10`
+                        //  Durum 2: `for i in 0..10`
                         Type::Custom(s) if s.starts_with("Range<") => {
                             // "Range<Type::I32>" gibi bir string'den I32 tipini çıkar.
                             // Bu basit bir çözüm, daha sonra daha sağlam bir hale getirilebilir.
@@ -1003,7 +1001,7 @@ impl<'a> TypeChecker<'a> {
                     None => Type::Void,
                 };
 
-                // YENİ: Eğer mevcut fonksiyon 'async' ise, beklenen dönüş tipi Future<T> değil, T'dir.
+                //  Eğer mevcut fonksiyon 'async' ise, beklenen dönüş tipi Future<T> değil, T'dir.
                 // Bu yüzden 'actual_type' ile 'self.expected_return_type'ı doğrudan karşılaştırabiliriz.
                 // Fonksiyonun genel imzasının Future<T> olduğu kontrolü zaten ilk taramada yapıldı.
 
@@ -1013,7 +1011,7 @@ impl<'a> TypeChecker<'a> {
 
                 if actual_type != self.expected_return_type {
                     // Hata mesajını daha anlaşılır hale getirelim.
-                    // YENİ: Mevcut fonksiyon adını kullanarak doğru imzayı bul.
+                    //  Mevcut fonksiyon adını kullanarak doğru imzayı bul.
                     let signature_return_type = self.current_function_name.as_ref()
                         .and_then(|name| self.function_signatures.get(name))
                         .map(|(_, ret, _, _)| ret.clone());
@@ -1039,7 +1037,7 @@ impl<'a> TypeChecker<'a> {
                 }
                 Ok(())
             }
-            Stmt::LabeledStmt { label, stmt, .. } => { // YENİ: 'is_public' alanını .. ile yoksay
+            Stmt::LabeledStmt { label, stmt, .. } => { //  'is_public' alanını .. ile yoksay
                 self.define_label(label.clone())?;
                 self.push_scope();
                 let info = VarInfo {
@@ -1078,7 +1076,7 @@ impl<'a> TypeChecker<'a> {
                 result
             },
             Stmt::Asm { .. } => {
-                // YENİ: `asm` blokları sadece `fastexec` içinde kullanılabilir.
+                //  `asm` blokları sadece `fastexec` içinde kullanılabilir.
                 if !self.in_fastexec_block {
                     return Err("Hata: 'asm' blokları yalnızca bir 'fastexec' bloğu içinde kullanılabilir.".to_string());
                 }
@@ -1270,7 +1268,7 @@ impl<'a> TypeChecker<'a> {
                 }
                 Ok(then_type)
             }
-            // YENİ: 'await' ifadesinin tip kontrolü.
+            //  'await' ifadesinin tip kontrolü.
             Expr::Await(expr) => {
                 let expr_type = self.type_of_expr(expr)?;
                 if let Type::Future(inner_type) = expr_type {
@@ -1312,7 +1310,7 @@ impl<'a> TypeChecker<'a> {
                 let object_type = self.type_of_expr(object)?;
                 match &object_type {
                     Type::Custom(name) => {
-                        // YENİ: Tek bir `Type::Custom` dalında hem struct hem de group kontrolü yap.
+                        //  Tek bir `Type::Custom` dalında hem struct hem de group kontrolü yap.
                         
                         // 1. Struct alanı mı?
                         if let Some(struct_def) = self.struct_definitions.get(name) {
@@ -1356,7 +1354,7 @@ impl<'a> TypeChecker<'a> {
                 }
             }
             Expr::Variable(name) => {
-                // YENİ: Merkezi isim çözümleme mantığını kullan.
+                //  Merkezi isim çözümleme mantığını kullan.
                 match self.get_variable_info(name) {
                     Ok(info) => Ok(info.ty),
                     Err(_) => {
@@ -1368,6 +1366,17 @@ impl<'a> TypeChecker<'a> {
                         }
                     }
                 }
+            },
+            Expr::Input(prompt_opt) => {
+                if let Some(prompt_expr) = prompt_opt {
+                    let ty = self.type_of_expr(prompt_expr)?;
+                    
+                    // ty.is_str() yerine bunu yaz:
+                    if !matches!(ty, Type::Str(_)) {
+                        return Err("input() fonksiyonuna verilen prompt bir metin (string) olmalıdır.".to_string());
+                    }
+                }
+                Ok(Type::Str(None)) // input her zaman string döner
             },
             Expr::Range { start, end } => {
                 let start_type = self.type_of_expr(start)?;
@@ -1502,7 +1511,7 @@ impl<'a> TypeChecker<'a> {
             Expr::Call { callee, args } => {
                 // echo ve print gibi özel, esnek (variadic) fonksiyonlar için öncelikli kontrol.
 
-                // YENİ: clone() fonksiyonu için özel kontrol
+                //  clone() fonksiyonu için özel kontrol
                 if let Expr::Variable(callee_name) = &**callee {
                     if callee_name == "clone" {
                         if args.len() != 1 {
@@ -1559,7 +1568,7 @@ impl<'a> TypeChecker<'a> {
                         }
                         
                         let (_, expected_type, _) = &params_def[param_index];
-                        // YENİ: Beklenen tipi, typedef ise gerçek tipine çözümle.
+                        //  Beklenen tipi, typedef ise gerçek tipine çözümle.
                         let resolved_expected_type = self.resolve_type(expected_type)?;
 
                         
@@ -1588,7 +1597,7 @@ impl<'a> TypeChecker<'a> {
                         }
                         
                         let (param_name, expected_type, _) = &params_def[positional_arg_index];
-                        // YENİ: Beklenen tipi, typedef ise gerçek tipine çözümle.
+                        //  Beklenen tipi, typedef ise gerçek tipine çözümle.
                         let resolved_expected_type = self.resolve_type(expected_type)?;
 
                         // Eğer parametre adı boşsa (bu bir fonksiyon pointer'ı çağrısıdır),
@@ -1608,7 +1617,7 @@ impl<'a> TypeChecker<'a> {
                                     return Err(format!("Hata: 'arrlen' fonksiyonu bir dizi bekler, bulundu: {:?}.", arg_type));
                                 }
                             } else {
-                                // YENİ: Pozitif i32 literallerinin işaretsiz tamsayı parametrelerine atanmasına izin ver.
+                                //  Pozitif i32 literallerinin işaretsiz tamsayı parametrelerine atanmasına izin ver.
                                 let allow_i32_to_unsigned_literal = resolved_expected_type.is_unsigned_integer() &&
                                     arg_type == Type::I32 &&
                                     matches!(arg_expr, Expr::Literal(LiteralValue::Int(val)) if *val >= 0);
@@ -1694,7 +1703,7 @@ impl<'a> TypeChecker<'a> {
                     self.define_variable(param_name.clone(), info)?;
                 }
                 
-                // YENİ: Lambda gövdesini kontrol etmeden önce beklenen dönüş tipini geçici olarak ayarla.
+                //  Lambda gövdesini kontrol etmeden önce beklenen dönüş tipini geçici olarak ayarla.
                 let old_expected_return_type = self.expected_return_type.clone();
                 self.expected_return_type = return_type.clone();
                 
@@ -1716,10 +1725,10 @@ impl<'a> TypeChecker<'a> {
                 Ok(Type::U64)
             },
             Expr::EnumAccess { enum_name, variant_name } => {
-                // YENİ: `::` operatörü bir modül takma adına mı erişiyor?
+                //  `::` operatörü bir modül takma adına mı erişiyor?
                 if let Some(real_module_name) = self.module_aliases.get(enum_name).cloned() {
                     // Evet, bu bir modül erişimi. Modülü yükle ve öğeyi bul.
-                    // YENİ: `real_module_name`'i klonladığımız için artık `self`'i mutable olarak ödünç alabiliriz.
+                    //  `real_module_name`'i klonladığımız için artık `self`'i mutable olarak ödünç alabiliriz.
                     let module_ast = self.load_module(&real_module_name)?; 
                     if let Decl::Program(declarations) = module_ast {
                         for decl in declarations {
@@ -1753,7 +1762,7 @@ impl<'a> TypeChecker<'a> {
                 // 1. Struct'ın tanımlı olup olmadığını kontrol et.
                 let struct_def = self.struct_definitions.get(name)
                     .ok_or_else(|| format!("Hata: Tanımlanmamış struct tipi: '{}'.", name))?
-                    .clone(); // YENİ: Borrow checker hatasını çözmek için struct tanımını klonla.
+                    .clone(); //  Borrow checker hatasını çözmek için struct tanımını klonla.
 
                 let mut provided_fields = HashSet::new();
 
@@ -1764,7 +1773,7 @@ impl<'a> TypeChecker<'a> {
 
                     let provided_type = self.type_of_expr(field_expr)?; // `field_expr` bir `&Expr`
 
-                    // YENİ: Enum tipi karşılaştırması için özel mantık.
+                    //  Enum tipi karşılaştırması için özel mantık.
                     let types_match = if let (Type::Custom(expected_name), Type::Enum(provided_name, _)) = (expected_field_type, &provided_type) {
                         // Eğer beklenen tip bir Custom("Status") ise ve sağlanan tip bir Enum("Status", ...) ise,
                         // isimleri eşleşiyorsa bunu geçerli kabul et.
@@ -1790,7 +1799,7 @@ impl<'a> TypeChecker<'a> {
                 // Her şey yolundaysa, ifadenin tipi bu struct'tır.
                 Ok(Type::Custom(name.clone()))
             },
-            // YENİ: Kanal gönderme ve alma işlemlerinin tip kontrolü
+            //  Kanal gönderme ve alma işlemlerinin tip kontrolü
             Expr::Send { channel, value } => {
                 let channel_type = self.type_of_expr(channel)?; // `channel` bir `&Expr`
                 let value_type = self.type_of_expr(value)?; // `value` bir `&Expr`
@@ -1816,7 +1825,7 @@ impl<'a> TypeChecker<'a> {
         }
     }
 
-    // YENİ: Bir tipi, takma ad ise gerçek tipine dönüştürür.
+    //  Bir tipi, takma ad ise gerçek tipine dönüştürür.
     fn resolve_type(&self, ty: &Type) -> Result<Type, String> {
         if let Type::Custom(name) = ty {
             if let Some(resolved_type) = self.type_aliases.get(name) {
@@ -1836,7 +1845,7 @@ impl<'a> TypeChecker<'a> {
         }
     }
 
-    // YENİ: Kapsam açmadan bir blok deyimini kontrol eden yardımcı fonksiyon.
+    //  Kapsam açmadan bir blok deyimini kontrol eden yardımcı fonksiyon.
     // 'for' döngüsü gibi zaten kendi kapsamını yöneten yapılar için kullanılır.
     fn check_block_stmt_no_scope(&mut self, block: &Stmt) -> Result<(), String> {
         if let Stmt::Block(stmts) = block {

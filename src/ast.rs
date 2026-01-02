@@ -136,6 +136,12 @@ pub enum Register {
 }
 
 impl Type {
+    /*pub fn is_str(&self) -> bool {
+        match self {
+            Type::Str(_) => true,
+            _ => false,
+        }
+    }*/
     // ... (mevcut kod)
 }
 
@@ -197,7 +203,7 @@ pub enum Expr {
         discriminant: Box<Expr>, // Kontrol edilen ifade (örn: match x { ... })
         cases: Vec<(Expr, Box<Expr>)>, // Durumlar: (Pattern, Sonuç İfadesi)
     },
-	
+	Input(Option<Box<Expr>>), // input(prompt) için yeni düğüm
 	Block {
         statements: Vec<Stmt>, // Blok içindeki deyimler
     },
@@ -290,7 +296,7 @@ pub enum Stmt {
     },
     
     // YENİ: For Döngüsü
-    // Hem C-stili `for (init; cond; inc)` hem de `for (var in iter)` için kullanılır.
+    // Hem C-stili `for (init, cond, inc)` hem de `for (var in iter)` için kullanılır.
     For {
         // C-stili için: initializer, condition, increment
         initializer: Option<Box<Stmt>>, 

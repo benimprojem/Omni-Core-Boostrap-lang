@@ -812,6 +812,28 @@ impl<'a, 'b> Codegen<'a, 'b> {
                     Err(format!("Kod üretimi hatası: Bilinmeyen değişken '{}'", name))
                 }
             }
+            Expr::Input(prompt_opt) => {
+                let mut input_code = String::new();
+
+                // 1. Prompt (Mesaj) varsa değerlendir ve RCX'e yükle
+                if let Some(prompt_expr) = prompt_opt {
+                    // prompt_expr bir Box<Expr> olduğu için generate_expr'e referansını gönderiyoruz
+                    input_code.push_str(&self.generate_expr(prompt_expr)?);
+                    input_code.push_str("    mov rcx, rax     # Prompt adresini RCX'e al\n");
+                } else {
+                    // Prompt yoksa RCX = 0 (NULL)
+                    input_code.push_str("    xor rcx, rcx     # Prompt yok\n");
+                }
+
+                // 2. Windows x64 ABI Shadow Space (32 byte)
+                // Dış fonksiyon çağrılmadan önce stack hizalaması ve gölge alan
+                input_code.push_str("    sub rsp, 32\n");
+                input_code.push_str("    call _input\n");
+                input_code.push_str("    add rsp, 32\n");
+
+                // Sonuç zaten _input'tan RAX register'ında döner.
+                Ok(input_code)
+            },
             Expr::Binary { left, op, right } => {
                 // TypeChecker'ı Codegen'in mevcut durumuyla senkronize et.
                 // doğru değişkenlerle doldurulmasını sağlar.
@@ -849,7 +871,13 @@ impl<'a, 'b> Codegen<'a, 'b> {
                         BinOp::Sub => code.push_str("    subsd xmm0, xmm1\n"),
                         BinOp::Mul => code.push_str("    mulsd xmm0, xmm1\n"),
                         BinOp::Div => code.push_str("    divsd xmm0, xmm1\n"),
-                        BinOp::Mod => return Err("Kayan noktalı sayılar için '%' mod operatörü desteklenmiyor.".to_string()),
+                        // YENİ: Mod operatörü desteği
+                        BinOp::Mod => {
+                            // Windows x64 ABI gereği fonksiyon çağrısından önce stack hizalama ve shadow space
+                            code.push_str("    sub rsp, 32\n"); 
+                            code.push_str("    call _fmod\n");
+                            code.push_str("    add rsp, 32\n");
+                        },
                         _ => return Err(format!("Desteklenmeyen ikili operatör (float): {:?}. Sadece +, -, *, / desteklenir.", op)),
                     }
                     self.type_checker.pop_scope()?;
@@ -875,7 +903,10 @@ impl<'a, 'b> Codegen<'a, 'b> {
                             code.push_str("    idiv rbx        # Signed division\n");
                         }
                         BinOp::Mod => {
-                            code.push_str("    cqo\n    idiv rbx\n    mov rax, rdx # Remainder is in RDX\n");
+                            // Mevcut Tam Sayı mod
+                            code.push_str("    cqo\n");
+                            code.push_str("    idiv rbx\n");
+                            code.push_str("    mov rax, rdx # Remainder is in RDX\n");
                         }
                         // Karşılaştırma Operatörleri
                         BinOp::Equal | BinOp::Eq => {
@@ -970,6 +1001,7 @@ impl<'a, 'b> Codegen<'a, 'b> {
                 self.type_checker.pop_scope()?;
                 Ok(code)
             }
+            
             Expr::Call { callee, args } => {
                 let mut code = String::new();
                 
@@ -1337,6 +1369,12 @@ impl<'a, 'b> Codegen<'a, 'b> {
         lib.push_str("_fmt_float_str: .asciz \"%f\"\n");
         lib.push_str(".section .text\n");
 
+        // Windows'ta kullanıcıdan veri almak için ReadFile veya scanf benzeri 
+        // bir yapı kullanmalısın. Eğer core.s kullanıyorsan oraya bakmalıyız.
+        lib.push_str("    # Burada ReadFile lojiği veya dış bir C fonksiyonu çağrısı olmalı\n");
+        lib.push_str("    add rsp, 40\n");
+        lib.push_str("    ret\n");
+
         // _atoi: rcx = string -> rax = integer
         lib.push_str("_atoi:\n");
         lib.push_str("    xor rax, rax\n    xor r8, r8\n    mov r9, 1\n");
@@ -1358,10 +1396,10 @@ impl<'a, 'b> Codegen<'a, 'b> {
         
         
         // _ftoa: xmm0 = float -> rax = string pointer //dönüşüm problemli .
-        // C standard library sprintf kullanarak float dönüşümü
+        // C standard library sprintf yerine _sprint kullanarak float dönüşümü
         lib.push_str("_ftoa:\n");
         lib.push_str("    sub rsp, 48\n"); // Shadow space (32) + alignment
-        // sprintf(buffer, "%f", val)
+        // _sprint(buffer, "%f", val)
         // RCX = buffer
         lib.push_str("    lea rcx, [_conv_buffer]\n");
         // RDX = format string
@@ -1369,7 +1407,7 @@ impl<'a, 'b> Codegen<'a, 'b> {
         // R8/XMM2 = val (Windows x64 calling convention: 3. argüman XMM2/R8)
         lib.push_str("    movaps xmm2, xmm0\n"); 
         lib.push_str("    movq r8, xmm0\n"); // Shadowing
-        lib.push_str("    call sprintf\n");
+        lib.push_str("    call _sprint\n");
         lib.push_str("    lea rax, [_conv_buffer]\n");
         lib.push_str("    add rsp, 48\n");
         lib.push_str("    ret\n");
